@@ -1,0 +1,73 @@
+# Source: prometheus/templates/prometheus.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: prometheus
+  name: prometheus
+  namespace: cilium-monitoring
+spec:
+  ports:
+  - name: webui
+    port: 9090
+    protocol: TCP
+    targetPort: 9090
+  selector:
+    app: prometheus
+  type: ClusterIP
+---
+# Source: prometheus/templates/prometheus.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: prometheus
+  name: prometheus
+  namespace: cilium-monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prometheus
+  template:
+    metadata:
+      labels:
+        app: prometheus
+      name: prometheus-main
+    spec:
+      containers:
+      - args:
+        - --config.file=/etc/prometheus/prometheus.yaml
+        - --storage.tsdb.path=/prometheus/
+        - --log.level=info
+        - --enable-feature=exemplar-storage
+        - --web.enable-lifecycle
+        image: "prom/prometheus:v2.42.0"
+        imagePullPolicy: IfNotPresent
+        name: prometheus
+        ports:
+        - containerPort: 9090
+          name: webui
+          protocol: TCP
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        volumeMounts:
+        - mountPath: /etc/prometheus
+          name: config-volume
+          readOnly: true
+        - mountPath: /prometheus/
+          name: storage
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      serviceAccount: prometheus-k8s
+      volumes:
+      - configMap:
+          name: prometheus
+        name: config-volume
+      - emptyDir: {}
+        name: storage
